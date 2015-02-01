@@ -68,6 +68,29 @@ public abstract class Data implements Comparable<Data> {
 	}
 	
 	public static Data construct(String data) {
-		return new TextData(data);		
+		Data currentData = null;
+		
+		// try neuron data
+		currentData = new NeuronData(data);
+		
+		if(! ((NeuronData)currentData).isValid() ) {
+			try {
+				currentData = new BoolData(data);
+			} catch (Exception e) {
+				currentData = null;
+			}
+		}
+		
+		// try index data
+		try {
+			currentData = new IndexData(data);
+		} catch(Exception ex) {
+		}
+		
+		if(currentData == null) {
+			currentData = new StringData(data);
+			// TODO later extend there to cover more types
+		}
+		return currentData;	
 	}
 }

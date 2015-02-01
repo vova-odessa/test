@@ -63,26 +63,8 @@ public class ArrayData extends Data {
 				isInRule = true;
 			}
 			
-			if(! isInRule) {
-				Data currentData = null;
-				
-				String curText = currentPartBuilder.toString();
-				currentData = new NeuronData(curText);
-				
-				if(! ((NeuronData)currentData).isValid() ) {
-					try {
-						currentData = new BoolData(curText);
-					} catch (Exception e) {
-						currentData = null;
-					}
-				}
-				
-				if(currentData == null) {
-					currentData = new StringData(curText);
-					// TODO later extend there to cover more types
-				}
-				
-				result.add(currentData);
+			if(! isInRule) {				
+				result.add(Data.construct(currentPartBuilder.toString()));
 				currentPartBuilder = new StringBuilder();
 			}
 		}

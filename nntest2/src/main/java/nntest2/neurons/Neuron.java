@@ -445,7 +445,7 @@ public class Neuron implements Comparable<Neuron> {
 	/**
 	 * @return the logger
 	 */
-	protected Logger getLogger() {
+	public Logger getLogger() {
 		return logger;
 	}
 }
