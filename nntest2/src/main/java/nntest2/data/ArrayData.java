@@ -1,6 +1,7 @@
 package nntest2.data;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -90,5 +91,9 @@ public class ArrayData extends Data {
 		}
 		
 		return new ArrayList<>(list.subList(from, to));
+	}
+	
+	public ArrayList<Data> list() {				
+		return new ArrayList<>(Arrays.asList(elements));
 	}
 }

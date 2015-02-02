@@ -1,6 +1,8 @@
 package nntest2.neurons;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -8,6 +10,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 
+import nntest2.Analyser;
 import nntest2.NeuroBase;
 import nntest2.data.AnalysisRequest;
 import nntest2.data.BoolData;
@@ -18,14 +21,18 @@ import nntest2.data.ComputationStatistic.ExperienceSet;
 import nntest2.data.ComputationStatistic.RelationsData;
 import nntest2.data.ComputationStatistic.ResultExperience;
 import nntest2.data.Data;
+import nntest2.data.IndexData;
 import nntest2.data.IntegerData;
+import nntest2.data.InvokationData;
 import nntest2.data.NeuronData;
 import nntest2.data.StringData;
 import nntest2.herpers.CommonHelper;
+import nntest2.herpers.NeuroHelper;
 
 import org.apache.log4j.Logger;
 
 import com.sec.gb.ipa.ks.common.data.Pair;
+import com.sec.gb.ipa.ks.common.util.Common;
 
 /**
  * In this conception handle + compute + activation can happen on same step.
@@ -55,7 +62,28 @@ public class Neuron implements Comparable<Neuron> {
 	//private HashMap<ArrayList<Data>, HashMap<Data, TreeMap<Data, HashMap<Neuron, Data> >> > knowledge = new HashMap<>();
 	//private HashMap<Neuron, Pair<Data, Double> > acceptedConfiguration = new HashMap<>();
 	private HashSet<Neuron> kidNeurons = new HashSet<>();
-	private ComputationStatistic knowledge = new ComputationStatistic();
+	private ComputationStatistic knowledge = new ComputationStatistic();	
+	private HashMap<Neuron, HashSet<InvokationData>> relations = new HashMap<>();
+	
+	public void addRelations(Neuron relation, Collection<InvokationData> objects) {
+		if(!relations.containsKey(relation)) {
+			relations.put(relation, new HashSet<>(objects));
+		} else {
+			relations.get(relation).addAll(objects);
+		}
+	}
+	
+	public void addRelations(Neuron relation, InvokationData object) {
+		addRelations(relation, Arrays.asList(new InvokationData[]{object}));
+	}
+	
+	public HashSet<InvokationData> getRelations(Neuron relation) {
+		return relations.get(relation);
+	}
+	
+	public void destroyRelations() {
+		relations = new HashMap<>();
+	}
 	
 	public void addKid(Neuron kid) {
 		kidNeurons.add(kid.register());
@@ -85,6 +113,14 @@ public class Neuron implements Comparable<Neuron> {
 	 * @return
 	 */
 	public boolean canValidate() {
+		return false;
+	}
+	
+	public boolean isVerificationRelation() {
+		return false;
+	}
+	
+	public boolean isComputationRelation() {
 		return false;
 	}
 	
@@ -149,7 +185,7 @@ public class Neuron implements Comparable<Neuron> {
 		
 		Set<Data> returnedData = new HashSet<>();
 		// collect possibilities from neurons with bijection neurons
-		if(knowledge.knowRelations()) {
+		/*if(knowledge.knowRelations()) {
 			//for (Entry<Neuron, Pair<Data, Double>> data : acceptedConfiguration.entrySet()) {
 			for(RelationsData data: knowledge.relations) {
 				//Neuron checkNeuron = data.getKey();
@@ -158,7 +194,7 @@ public class Neuron implements Comparable<Neuron> {
 				
 				if(bijectionNeuron != null) {
 					//Data neuronValue = data.getValue().first;
-					Data neuronValue = data.actualOutput;
+					Data neuronValue = data.expectedOutput;
 					
 					if(alternativeData != null && alternativeData.containsKey(data.processingNeuron)) {
 						// use suggested data. Need for variables
@@ -176,13 +212,13 @@ public class Neuron implements Comparable<Neuron> {
 						
 						if(nullNeuron == null) {
 							// if there no bijection neuron, relation can still be used to validate
-							Data normalValue = controlData.actualOutput;
+							Data normalValue = controlData.expectedOutput;
 							if(alternativeData != null && alternativeData.containsKey(controlData.processingNeuron)) {
 								normalValue = alternativeData.get(data.processingNeuron);
 							}
 							
 							Data answer2 = conditionNeuron.compute(operatorName, CommonHelper.mergeCopy(input, answer), normalValue);
-							if(answer2 == null || !answer2.isTrue()) {
+							if(answer2 == null || !answer2.isTrue() ) {
 								logger.info("answer is omited [" + answer + "] because [" + conditionNeuron.getName() + "] = [" + normalValue + "] not passed" ); 
 								passed = false;
 								break;
@@ -204,6 +240,49 @@ public class Neuron implements Comparable<Neuron> {
 			}
 			
 			// no answer or answer is ambiguous
+		}*/
+		
+		Set<Data> results = new HashSet<>();
+		
+		for(Entry<Neuron, HashSet<InvokationData>> relation : relations.entrySet()) {
+			
+			for (InvokationData solution : relation.getValue()) {
+				if(relation.getKey().isComputationRelation()) {
+					Data result = null; 
+					Data alternative = null;
+					
+					if(alternativeData != null) {
+						if(alternativeData.containsKey(solution.neuron.getNeuron())) {
+							alternative = alternativeData.get(solution.neuron.getNeuron());
+						} else if(alternativeData.containsKey(solution.subjectNeuron.getNeuron())) {
+							alternative = alternativeData.get(solution.subjectNeuron.getNeuron());
+						}
+					}
+					
+					if(alternative != null) {
+						solution = solution.clone();
+						solution.inputMapping = ParameterisedNeuron.replaceData(solution.inputMapping, alternative);
+					}
+					
+					result = solution.invoke(input, null);
+					
+					if(result != null) {
+						results.add(result);
+					}
+				}
+				
+				if(relation.getKey().isVerificationRelation()) {
+					if(!solution.validate(input, null)) {
+						// input not compatible
+						return null;
+					}
+				}
+			}
+			
+		}
+		
+		if(results.size() == 1) {
+			return results.iterator().next();
 		}
 		
 		return null;
@@ -252,18 +331,7 @@ public class Neuron implements Comparable<Neuron> {
 	}
 	
 	public Data compute(StringData operatorName, ArrayList<Data> input, Data output) {
-		Data result = null;
-		if(input.size() == 1) {
-			result = compute(operatorName, input.get(0), output);			
-		} else if(input.size() == 2) {
-			result = compute2(operatorName, input.get(0), input.get(1), output);
-		}
-		
-		if(result != null) {
-			return result;
-		}
-		
-		result = compute(operatorName, input);
+		Data result = compute(operatorName, input);
 		if(result == null) {
 			return null;
 		}
@@ -332,29 +400,72 @@ public class Neuron implements Comparable<Neuron> {
 	private void trainRelations(ArrayList<Data> input, Data output) {		
 		HashMap<Neuron, HashMap<Data, Pair<ResultExperience, Double>>> summary = knowledge.computeSummary();
 		HashMap<Neuron, HashMap<Data, Pair<ResultExperience, Double>>> distribution = ComputationStatistic.computeDistribution(summary);
+		HashMap<Neuron, ArrayList<Data>> vals = knowledge.computeValues();
+		HashMap<Neuron, ArrayList<Data>> outputs = knowledge.computeExpectedOutputs();
 		
 		////////////////////////////////////////////
 		// compute invariant statistic 
-		HashSet<RelationsData> invariants = new HashSet();
+		// ??? just suggest relation neurons candidates? that should be verified and connected to actual relation type?
+		HashSet<RelationsData> relations = new HashSet();
 		// normalize statistic
 		for(Entry<Neuron, HashMap<Data, Pair<ResultExperience, Double>>> answerStats: distribution.entrySet() ) {
-			
+		
+			// inspect neuron autputs for stability
 			for( Entry<Data, Pair<ResultExperience, Double>> appearences: answerStats.getValue().entrySet() ) {
 				if(appearences.getValue().second > INVARIANT_LEARN_ACCEPT_TRESHOLD) {
 					//invariants.add(appearences.getKey());
 					RelationsData relation = new RelationsData();
 					relation.processingNeuron = answerStats.getKey();
-					relation.expectedOutput = output;
-					relation.actualOutput = appearences.getKey();
-					relation.inputConfiguration = appearences.getValue().first.inputConfiguration;
-					//TODO relation.expectedUsedAsLastInput = 
-					invariants.add(relation);
+					//relation.expectedOutput = appearences.getValue().first.parentOutput;
+					//relation.actualOutput = appearences.getKey();
+					relation.expectedOutput = appearences.getKey();
+					relation.inputConfiguration = appearences.getValue().first.input;					
+					relations.add(relation);
 				} 
 			}				
-		}	
-		
-		if(! knowledge.validateRelations(invariants) ) {
+			
+			// inspect parentOutput -> outputRelations
+			
+			Data result = NeuroBase.getInstance().findNeuron(new StringData(NeuroHelper.HAS_SAME_ELEMENTS))
+					.compute(Analyser.EQ_OPER, CommonHelper.mergeCopy(vals.get(answerStats.getKey()), outputs.get(answerStats.getKey())));
+			if( result != null && result.isTrue()) {
+				RelationsData relation = new RelationsData();
+				relation.processingNeuron = answerStats.getKey();
+				relation.relationNeuron = NeuroBase.getInstance().same;		
+				relations.add(relation);
+				
+				ArrayList<Data> inputMapping = new ArrayList<>();				
+				for(int i = 0; i < input.size(); ++ i) {
+					inputMapping.add(new IndexData(i));
+				}
+				try {
+					InvokationData data = new InvokationData(new NeuronData(answerStats.getKey()), inputMapping);
+					relation.invocation = data;
+					addRelations(relation.relationNeuron, data);
+				} catch (Exception e) {
+				}
+			}
+		}
+				
+		if(! knowledge.validateRelations(relations) ) {
 			return;
+		}
+		
+		if(knowledge.knowRelations()) {
+			// method probably stable.
+			
+			// destroy kids for case it changed
+			// XXX validate if those kids are the same later
+			destroyKids();
+			destroyRelations();
+			
+			Set<NeuronData> newKids = NeuroBase.getInstance().analyseNeuron(this);
+			
+			if(newKids != null) {
+				for (NeuronData neuronData : newKids) {
+					addKid(neuronData.getNeuron());
+				}
+			}
 		}
 		
 		// if relations are changed after new experience added, check them.
@@ -367,48 +478,49 @@ public class Neuron implements Comparable<Neuron> {
 			knowledge.relations = null;
 			// need to destroy kids
 			destroyKids();
+			destroyRelations();
 		}		
-		
-		if(knowledge.knowRelations()) {
-			// method probably stable.
-			
-			// destroy kids for case it changed
-			// XXX validate if those kids are the same later
-			destroyKids();
-			
-			Set<NeuronData> newKids = NeuroBase.getInstance().analyseNeuron(this);
-			
-			if(newKids != null) {
-				for (NeuronData neuronData : newKids) {
-					addKid(neuronData.getNeuron());
-				}
-			}
-		}
 	}
 	
 	public void train(StringData operatorName, ArrayList<Data> input, Data output) {
 		ArrayList<ResultExperience> experience = new ArrayList<>();
 		
 		NeuroBase base = NeuroBase.getInstance();
-		ArrayList<Data> mergedInput = CommonHelper.mergeCopy(input, output);
+		boolean isOutputBoolean = (Data.construct(output.toString()) instanceof BoolData);
+		
+		ArrayList<Data> mergedInput = input;
+		if(!isOutputBoolean) {
+			mergedInput = CommonHelper.mergeCopy(input, output);
+		}
 		
 		for(Entry<Data, Neuron> neuron: base.getNeurons().entrySet()) {
 			// search input + output characteristics. If found => biective function can be used to find output from input
 			// TODO check for all subsets of input. Sometimes actual value can be computed on subset, and other need only for validation.
 			// example for above: similar length of containing string is just length of second, and verification is contains for both.
-			Data result = neuron.getValue().compute(operatorName, mergedInput);
+			Neuron neuronObj = neuron.getValue();
+			
+			if(neuronObj.compareTo(this) == 0) {
+				continue;
+			}
+			
+			Data result = neuronObj.compute(operatorName, mergedInput);			
+			
 			if(result != null) {
 				//experience.put(neuron.getValue(), result);
-				ResultExperience currentExperience = new ResultExperience(neuron.getValue(), DataPredicate.cover(mergedInput), result);
+				ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(mergedInput), result, output);
 				experience.add(currentExperience);
 			}
 			
 			// TODO find verification relations by comparing output. 
 			
 			// TODO find exact same result relations 
-			Data sameResult = neuron.getValue().compute(operatorName, input);
+			Data sameResult = neuronObj.compute(operatorName, input);
 			if(sameResult != null && sameResult.compareTo(output) == 0) {
-				// XXX
+				if(!isOutputBoolean) {
+					// other will be included before
+					ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(input), result, output);
+					experience.add(currentExperience);
+				}
 			}
 		}
 		

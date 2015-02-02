@@ -27,10 +27,17 @@ import nntest2.neurons.Neuron;
 import nntest2.neurons.ParameterisedNeuron;
 
 public class NeuroHelper {
-	private static final String COUNT = "count";
-	private static final String CONTAINS = "contains";
-	private static final String INDEX_OF = "index of";
-	private static final String BACK_INDEX_OF = "back index of";
+	public static final String HAS_SAME_ELEMENTS = "has same elements";
+	public static final String BACK_SUBSTRING_FROM_TO = "back substring from to";
+	public static final String SUBSTRING_FROM_LEN = "substring from len";
+	public static final String SUBSTRING_FROM_TO = "substring from to";
+	public static final String FIND_OPERATOR_TO_SOLUTION_RELATIONS = "find operator to solution relations";
+	public static final String GET_FROM_END = "get from end";
+	public static final String GET_FROM_BEGIN = "get from begin";
+	public static final String COUNT = "count";
+	public static final String CONTAINS = "contains";
+	public static final String INDEX_OF = "index of";
+	public static final String BACK_INDEX_OF = "back index of";
 
 	public static HashMap<Data, Neuron> createBaseNeurons(NeuroBase base) {
 		HashMap<Data, Neuron> result = new HashMap<>();
@@ -51,7 +58,7 @@ public class NeuroHelper {
 			}
 		};		
 		
-		final Neuron getBeginNeuron = new Neuron("get from begin") {
+		final Neuron getBeginNeuron = new Neuron(GET_FROM_BEGIN) {
 			@Override
 			public Data compute2(StringData operatorName, Data input1, Data input2) {
 				Data[] elements = input1.elements();
@@ -73,7 +80,7 @@ public class NeuroHelper {
 			}
 		};
 		
-		final Neuron getEndNeuron = new Neuron("get from end") {
+		final Neuron getEndNeuron = new Neuron(GET_FROM_END) {
 			@Override
 			public Data compute2(StringData operatorName, Data input1, Data input2) {
 				Data[] elements = input1.elements();
@@ -136,7 +143,7 @@ public class NeuroHelper {
 		 * That neuron need to globalize solution for given text attributes in name
 		 * Ex: If trained operator: a * 2 train how to multiply 2. It can automatically learn how to multiply any N.
 		 */
-		Neuron findOperatorToSolutionParameters = new Neuron("find operator to solution relations") {
+		Neuron findOperatorToSolutionParameters = new Neuron(FIND_OPERATOR_TO_SOLUTION_RELATIONS) {
 			@Override
 			public Set<NeuronData> compute(Neuron neuron) {				
 				StringData operatorName = neuron.getName();
@@ -154,12 +161,12 @@ public class NeuroHelper {
 						boolean success = false;
 						//for(Entry<Neuron, Pair<Data, Double>> neuroRelation: neuron.getRelations().entrySet()) {
 						for(RelationsData neuroRelation: neuron.getRelations()) {
-							if(part.compareTo(neuroRelation.actualOutput) == 0) {
+							if(part.compareTo(neuroRelation.expectedOutput) == 0) {
 								if(!foundRelations.containsKey(index)) {
 									foundRelations.put(index, new HashMap<Neuron, Data>());
 								}
 								
-								foundRelations.get(index).put(neuroRelation.processingNeuron, neuroRelation.actualOutput);
+								foundRelations.get(index).put(neuroRelation.processingNeuron, neuroRelation.expectedOutput);
 								
 								success = true;
 							}
@@ -190,6 +197,93 @@ public class NeuroHelper {
 			}
 		};
 		
+		Neuron substring = new Neuron(SUBSTRING_FROM_TO) {
+			@Override
+			public Data compute(StringData operatorName, ArrayList<Data> data) {
+				try {
+					int ind1 = new Integer(data.get(1).toString());
+					int ind2 = new Integer(data.get(2).toString());
+					return new StringData(data.get(0).toString().substring(ind1 + 1, ind2 + 1));
+				}
+				catch(Throwable t) {
+					
+				}
+				return null;
+			}
+		};
+		
+		Neuron substring2 = new Neuron(SUBSTRING_FROM_LEN) {
+			@Override
+			public Data compute(StringData operatorName, ArrayList<Data> data) {
+				try {
+					int ind1 = new Integer(data.get(1).toString());
+					int ind2 = new Integer(data.get(2).toString());
+					return new StringData(data.get(0).toString().substring(ind1 + 1, ind1 + ind2 + 1));
+				}
+				catch(Throwable t) {
+					
+				}
+				return null;
+			}
+		};
+		
+		Neuron backSubstring = new Neuron(BACK_SUBSTRING_FROM_TO) {
+			@Override
+			public Data compute(StringData operatorName, ArrayList<Data> data) {
+				try {
+					int ind1 = new Integer(data.get(1).toString());
+					int ind2 = new Integer(data.get(2).toString());
+					String string = data.get(0).toString();
+					return new StringData(string.substring(string.length() - ind2, string.length() - ind1));
+				}
+				catch(Throwable t) {
+					
+				}
+				return null;
+			}
+		};
+		
+		Neuron backSubstring2 = new Neuron(SUBSTRING_FROM_LEN) {
+			@Override
+			public Data compute(StringData operatorName, ArrayList<Data> data) {
+				try {
+					int ind1 = new Integer(data.get(1).toString());
+					int ind2 = new Integer(data.get(2).toString());
+					String string = data.get(0).toString();
+					return new StringData(string.substring(string.length() - ind1, string.length() - ind1 + ind2));
+				}
+				catch(Throwable t) {
+					
+				}
+				return null;
+			}
+		};
+		
+		Neuron sameElements = new Neuron(HAS_SAME_ELEMENTS) {
+			@Override
+			public Data compute(StringData operatorName, ArrayList<Data> data) {
+				try {
+					if(data.size() < 2) {
+						return new BoolData(true);
+					} 
+					
+					Data first = data.get(0);
+					
+					for(int i = 1; i < data.size(); ++ i) {
+						if(first.compareTo(data.get(i)) != 0) {
+							return new BoolData(false);
+						}
+					}
+					
+					return new BoolData(true);
+				}
+				catch(Throwable t) {
+					
+				}
+				return null;
+			}
+		};
+		
 		Neuron findInvariantRelationsNeuron = new InvariantNeuronAnalysingNeuron();
 		
 		add(result, countNeuron);
@@ -200,6 +294,11 @@ public class NeuroHelper {
 		add(result, getEndNeuron);	
 		add(result, findOperatorToSolutionParameters);
 		add(result, findInvariantRelationsNeuron);
+		add(result, substring);
+		add(result, substring2);
+		add(result, backSubstring);
+		add(result, backSubstring2);
+		add(result, sameElements);
 		
 		return result;		
 	}

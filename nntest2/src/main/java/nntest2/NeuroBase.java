@@ -8,7 +8,12 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 import org.apache.log4j.helpers.Loader;
 
+import nntest2.data.BoolData;
+import nntest2.data.ComputationStatistic.DataPredicate;
+import nntest2.data.ComputationStatistic.RelationsData;
 import nntest2.data.Data;
+import nntest2.data.IndexData;
+import nntest2.data.InvokationData;
 import nntest2.data.NeuronData;
 import nntest2.data.ProcessingResult;
 import nntest2.data.StringData;
@@ -20,6 +25,127 @@ public class NeuroBase {
 	Logger logger = Logger.getLogger(NeuroBase.class);
 	//private static final StringData LENGTH_NEURON_NAME = new StringData("length");
 	//private static final StringData SAME_ELEMENTS_NEURON_NAME = new StringData("same elements");
+	
+	public Neuron bijection = new Neuron("neuron bijection analysis") {
+		public boolean canAnalyseNeurons() {
+			return true;
+		};
+		
+
+		@Override
+		public boolean isComputationRelation() {
+			return true;
+		}
+		
+		@Override
+		public Set<NeuronData> compute(Neuron inputNeuron) {
+			Set<InvokationData> invocations = new HashSet<>();
+			
+			for(RelationsData relation: inputNeuron.getRelations()) {
+				if(relation.relationNeuron != null && relation.relationNeuron.compareTo(this) == 0 
+						|| relation.expectedOutput != null && !(relation.expectedOutput instanceof BoolData)) {
+					try {
+						//invocations.add(new InvokationData(new NeuronData(relation.processingNeuron), DataPredicate.extract(relation.inputConfiguration)));						
+						HashSet<InvokationData> rels = relation.processingNeuron.getRelations(bijection);
+						
+						if(rels != null) {
+							for (InvokationData invokationData : rels) {
+								//invokationData.inputMapping.set(invokationData.inputMapping.size() - 1, relation.expectedOutput);
+								InvokationData data = invokationData.clone();
+								data.inputMapping.set(invokationData.inputMapping.size() - 1, relation.expectedOutput);
+								data.subjectNeuron = new NeuronData(relation.processingNeuron);
+								invocations.add(data);								
+							}
+							
+							// XXX check relations with existent data
+						} else {
+							inputNeuron.addRelations(NeuroBase.getInstance().validation, new InvokationData(new NeuronData(relation.processingNeuron), DataPredicate.extract(relation.inputConfiguration), relation.expectedOutput));
+						}
+					} catch (Exception e) {
+					}
+				}
+			}
+			
+			inputNeuron.addRelations(this, invocations);
+			
+			// no neurons are produced
+			return null;
+		}		
+	};
+	
+	public Neuron same = new Neuron("neuron similarity analysis") {
+		public boolean canAnalyseNeurons() {
+			return true;
+		};
+		
+		@Override
+		public Set<NeuronData> compute(Neuron inputNeuron) {
+			//return super.compute(inputNeuron);
+			Set<InvokationData> invocations = new HashSet<>();
+			
+			for(RelationsData relation: inputNeuron.getRelations()) {
+				try {
+					if(relation.relationNeuron != null && relation.relationNeuron.compareTo(this) == 0) {
+						invocations.add(new InvokationData(new NeuronData(relation.processingNeuron), DataPredicate.extract(relation.inputConfiguration)));
+					} else if(relation.expectedOutput != null && relation.expectedOutput instanceof BoolData) {					
+						if(relation.expectedOutput.compareTo(relation.expectedOutput) == 0) {							
+							invocations.add(new InvokationData(new NeuronData(relation.processingNeuron), DataPredicate.extract(relation.inputConfiguration)));							
+						} else {
+							Neuron notNeuron = NeuroBase.getInstance().findNeuron(new StringData("(not)"));
+							if(notNeuron != null) {
+								ArrayList<Data> inputMapping = new ArrayList<Data>();
+								inputMapping.add(new InvokationData(new NeuronData(relation.processingNeuron), DataPredicate.extract(relation.inputConfiguration)));
+								InvokationData notInvocation = new InvokationData(new NeuronData(notNeuron), inputMapping);
+							}
+						}	
+					}				
+				} catch (Exception e) {
+				}
+				
+			}
+			
+			addRelations(this, invocations);
+			
+			// no neurons are produced
+			return null;
+		}
+		
+
+		@Override
+		public boolean isComputationRelation() {
+			return true;
+		}
+	};
+	
+	public Neuron validation = new Neuron("neuron validation analysis") {
+		public boolean canAnalyseNeurons() {
+			return true;
+		};
+		
+		@Override
+		public Set<NeuronData> compute(Neuron inputNeuron) {
+			Set<InvokationData> invocations = new HashSet<>();
+			
+			for(RelationsData relation: inputNeuron.getRelations()) {
+				if(relation.relationNeuron != null && relation.relationNeuron.compareTo(this) == 0 
+						|| relation.expectedOutput != null && relation.expectedOutput instanceof BoolData) {
+					try {
+						invocations.add(new InvokationData(new NeuronData(relation.processingNeuron), DataPredicate.extract(relation.inputConfiguration), relation.expectedOutput));						
+					} catch (Exception e) {
+					}
+				}
+			}
+			
+			addRelations(this, invocations);
+			
+			// no neurons are produced
+			return null;
+		}		
+
+		public boolean isVerificationRelation() {
+			return true;
+		};
+	};
 	
 	private HashMap<Data, Neuron> neurons = new HashMap<>();
 	private HashMap<Data, Neuron> parameterisedNeurons = new HashMap<>();
@@ -34,15 +160,10 @@ public class NeuroBase {
 		for(Neuron neuron: basisNeurons.values()) {
 			register(neuron);
 		}
-	}
-	
-	public void makeAssociation(Data obj1, Data obj2) {
-		// XXX
-	}
-	
-	public Set<Data> getAssotiations(Data obj) {
-		// XXX
-		return null;		
+		
+		register(bijection);
+		register(same);
+		register(validation);
 	}
 	
 	public Neuron getOperator(Data operator) {

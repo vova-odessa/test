@@ -21,8 +21,9 @@ public class ComputationStatistic {
 	public static class DataPredicate {
 		public Data data;
 		public Boolean used;
+		public int index = -1;
 		
-		public DataPredicate(Data data, Boolean used) {
+		public DataPredicate(Data data, Boolean used, int index) {
 			this.data = data;
 			this.used = used;
 		}
@@ -30,7 +31,11 @@ public class ComputationStatistic {
 		@Override
 		public String toString() {
 			if(used) {
-				return data.toString();
+				if(index == -1) {
+					return data.toString();
+				} else {
+					return new IndexData(index).toString();
+				}
 			} else {
 				return "";
 			}
@@ -41,7 +46,27 @@ public class ComputationStatistic {
 			
 			if(predicatedInput != null) {
 				for (DataPredicate data : predicatedInput) {
-					result.add(data.data);
+					if(data.used) {
+						result.add(data.data);
+					}
+				}
+			}
+			return result;			
+		}
+		
+		public static ArrayList<Data> extract(ArrayList<DataPredicate> predicatedInput, ArrayList<Data> parentInput) {
+			ArrayList<Data> result = new ArrayList<>();
+			
+			if(predicatedInput != null) {
+				for (DataPredicate data : predicatedInput) {
+					if(data.used) {
+						//result.add(data.data);
+						if(data.index == -1) {
+							result.add(data.data);
+						} else {
+							result.add(parentInput.get(data.index));
+						}
+					}
 				}
 			}
 			return result;			
@@ -51,8 +76,9 @@ public class ComputationStatistic {
 			ArrayList<DataPredicate> result = new ArrayList<>();
 			
 			if(predicatedInput != null) {
+				int index = 0;
 				for (Data data : predicatedInput) {
-					result.add(new DataPredicate(data, true));
+					result.add(new DataPredicate(data, true, index ++));
 				}
 			}
 			return result;			
@@ -63,16 +89,19 @@ public class ComputationStatistic {
 		public Neuron neuron;
 		public ArrayList<DataPredicate> input;
 		public Data output;
-		public ArrayList<Boolean> inputConfiguration;
+		public Data parentOutput;
+		public ArrayList<Data> inputConfiguration;
 		
-		public ResultExperience(Neuron neuron, ArrayList<DataPredicate> input, Data output) {
+		public ResultExperience(Neuron neuron, ArrayList<DataPredicate> input, Data output, Data parentOutput) {
 			this.neuron = neuron;
 			this.input = input;
 			this.output = output;
+			this.parentOutput = parentOutput;
 			
 			inputConfiguration = new ArrayList<>();
 			for (DataPredicate predicate : input) {
-				inputConfiguration.add(predicate.used);
+				//inputConfiguration.add(predicate.used);
+				inputConfiguration.add(new IndexData(predicate.index));
 			}
 		}
 		
@@ -100,7 +129,11 @@ public class ComputationStatistic {
 			}
 			
 			if(output != null) {
-				resultBuilder.append(tab + "\toutput: " + output.toString());
+				resultBuilder.append(tab + "\toutput: " + output.toString() + "\n");
+			}
+			
+			if(parentOutput != null) {
+				resultBuilder.append(tab + "\tparentOutput: " + parentOutput.toString() + "\n");
 			}
 			
 			return resultBuilder.append(tab + ")\n").toString();
@@ -206,11 +239,12 @@ public class ComputationStatistic {
 	
 	public static class RelationsData {
 		public Neuron relationNeuron;
-		public ArrayList<Boolean> inputConfiguration;
+		public ArrayList<DataPredicate> inputConfiguration;
 		public Neuron processingNeuron;
 		public Data expectedOutput;
-		public Data actualOutput;
+		//public Data actualOutput;
 		public Boolean expectedUsedAsLastInput = false;
+		public InvokationData invocation = null;
 		
 		@Override
 		public String toString() {
@@ -234,13 +268,17 @@ public class ComputationStatistic {
 				resultBuilder.append(tab + "\tinput: " + inputConfiguration.toString() + ",\n");
 			}
 			
-			if(actualOutput != null) {
+			/*if(actualOutput != null) {
 				resultBuilder.append(tab + "\toutput: " + actualOutput.toString() + ",");
 				if(expectedUsedAsLastInput) {
 					resultBuilder.append("+(used expected output as input) " + expectedOutput.toString() + ",\n");
 				} else {
 					resultBuilder.append("\n");
 				}
+			}*/
+			
+			if(invocation != null) {
+				resultBuilder.append(tab + "\tinvocation: " + invocation.toString() + ",\n");
 			}
 			
 			if(!expectedUsedAsLastInput && expectedOutput != null) {
@@ -332,6 +370,48 @@ public class ComputationStatistic {
 						Pair<ResultExperience, Double> stat = stats.get(val.getValue().output);
 						stat.second += 1.0;
 					}
+				}		
+			}
+		}
+		
+		return summary;
+	}
+	
+	public HashMap<Neuron, ArrayList<Data>> computeValues() {
+		HashMap<Neuron, ArrayList<Data>> summary = new HashMap<>();
+		
+		// compute values distribution
+			
+		for(ExperienceData values: getAllExperience()) {
+			if(values != null) {				
+				Map<Neuron, ResultExperience> vals = values.computationResults;
+				for(Entry<Neuron, ResultExperience> val: vals.entrySet()) {
+					if(!summary.containsKey(val.getKey())) {
+						summary.put(val.getKey(), new ArrayList<Data>());
+					}
+					
+					summary.get(val.getKey()).add(val.getValue().output);
+				}		
+			}
+		}
+		
+		return summary;
+	}
+	
+	public HashMap<Neuron, ArrayList<Data>> computeExpectedOutputs() {
+		HashMap<Neuron, ArrayList<Data>> summary = new HashMap<>();
+		
+		// compute values distribution
+			
+		for(ExperienceData values: getAllExperience()) {
+			if(values != null) {				
+				Map<Neuron, ResultExperience> vals = values.computationResults;
+				for(Entry<Neuron, ResultExperience> val: vals.entrySet()) {
+					if(!summary.containsKey(val.getKey())) {
+						summary.put(val.getKey(), new ArrayList<Data>());
+					}
+					
+					summary.get(val.getKey()).add(val.getValue().parentOutput);
 				}		
 			}
 		}

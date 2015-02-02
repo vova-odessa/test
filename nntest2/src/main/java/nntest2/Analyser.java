@@ -21,9 +21,11 @@ public class Analyser {
 	Logger logger = Logger.getLogger(Analyser.class);
 	
 	public static final StringData EQ_OPER = new StringData("(=)");
+	public static final StringData NOT_EQ_OPER = new StringData("(!=)");
 	public static final StringData THEN_OPER = new StringData("(=>)");
 	public static final StringData THEN_ONLY_THEN_OPER = new StringData("(<=>)");
-	private final Set<StringData> defaultOperators = new HashSet<>(Arrays.asList(new StringData[] {EQ_OPER, THEN_OPER, THEN_ONLY_THEN_OPER}));
+	
+	private final Set<StringData> defaultOperators = new HashSet<>(Arrays.asList(new StringData[] {EQ_OPER, THEN_OPER, THEN_ONLY_THEN_OPER, NOT_EQ_OPER}));
 	private Set<StringData> extendedOperators = new HashSet<>();
 	//private HashMap<Data, Data> labels = new HashMap<>();
 	private Queue<Fact> prevFacts = new LinkedList<>();
@@ -159,24 +161,37 @@ public class Analyser {
 	
 	public static void main(String[] args) {
 		Analyser analyser = new Analyser();
+		// not
+		analyser.Analyse("(not) true (=) false");
+		analyser.Analyse("(not) false (=) true");
 		
 		// last N
 		analyser.Analyse("(last 2 of) 12345 (=) 45");
 		analyser.Analyse("(last 2 of) 1234567 (=) 67");
 		analyser.Analyse("(last 2 of) aabbvccd (=) cd");
 		analyser.Analyse("(last 2 of) aabbaavccd (=) cd");
+		analyser.Analyse("(last 2 of) bb (=) bb");
+		
 		
 		// starts with
+		analyser.Analyse("(starts with) 12345678 123 (=) true");
+		analyser.Analyse("(starts with) 1234 12 (=) true");
 		analyser.Analyse("(starts with) aabbaavccd aab (=) true");
-		analyser.Analyse("(starts with) aabbaavccd aabb (=) true");
-		analyser.Analyse("(starts with) aabbaavccd aabba (=) true");
-		analyser.Analyse("(starts with) aabbaavccd aabbaa (=) true");
+		analyser.Analyse("(starts with) hahahah ha (=) true");
+		analyser.Analyse("(starts with) pppoooo pppo (=) true");
+		analyser.Analyse("(starts with) pppoooo uuu (=) false");
 		
 		// first N
 		analyser.Analyse("(first 2 of) 12345 (=) 12");
 		analyser.Analyse("(first 2 of) 1234567 (=) 12");
 		analyser.Analyse("(first 2 of) aabbvccd (=) aa");
 		analyser.Analyse("(first 2 of) aabbaavccd (=) aa");
+		
+		// eq
+		analyser.Analyse("a (equals) a (=) true");
+		analyser.Analyse("b (equals) b (=) true");
+		analyser.Analyse("22 (equals) 22 (=) true");
+		analyser.Analyse("a (equals) b (=) false");
 		
 		// test
 		analyser.Analyse("(last 2 of) ahahaha");
@@ -188,6 +203,8 @@ public class Analyser {
 		analyser.Analyse("(first 2 of) a");
 		analyser.Analyse("(first 3 of) 123456789");
 		analyser.Analyse("(first 7 of) 123456789");		
+		analyser.Analyse("34 (equals) 34");
+		analyser.Analyse("34 (equals) 35");
 		//////////////////////////////////////////////////////////
 	}
 }

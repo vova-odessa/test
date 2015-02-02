@@ -15,6 +15,7 @@ import nntest2.data.AnalysisRequest;
 import nntest2.data.ArrayData;
 import nntest2.data.Data;
 import nntest2.data.IndexData;
+import nntest2.data.InvokationData;
 import nntest2.data.NeuronData;
 import nntest2.data.StringData;
 import nntest2.herpers.CommonHelper;
@@ -40,12 +41,12 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 	
 	@Override
 	public void compute(AnalysisRequest input) {
-		if(!history.contains(input)) {
+		if(/*!history.contains(input)*/!queue.contains(input)) {
 			
 			synchronized (queue) {
 				queue.add(input);
 			}
-			history.add(input);	
+			//history.add(input);	
 			
 			if(isInAnalysis.isEmpty()) {
 				isInAnalysis.inc();
@@ -86,10 +87,11 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 			
 			// test regular neurons
 			HashMap<Data, Neuron> neurons = NeuroBase.getInstance().getNeurons();
+			Set<InvokationData> invocations = new HashSet<>();
 			
 			for (Neuron testNeuron : neurons.values()) {
 				if(analysedRelations.contains(testNeuron)) {
-				//	continue;
+					continue;
 				} 
 				
 				analysedRelations.add(testNeuron);
@@ -99,9 +101,22 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 					ArrayList<Data> inputMapping = new ArrayList<Data>();
 					inputMapping.add(new IndexData(0));
 					inputMapping.add(new IndexData(1));
-					//getLogger().error("!!!!! " + f.getName() + "->" + testNeuron.getName());
+					getLogger().error("!!!!! " + f.getName() + "->" + testNeuron.getName());
+					try {
+						invocations.add(new InvokationData(new NeuronData(testNeuron), inputMapping));
+					} catch (Exception e) {
+					}
+				} else {
+					//getLogger().error("!! " + f.getName() + "->" + testNeuron.getName() + ".. " + y + ".. " + yRes);
 				}
 			}		
+			
+			if(invocations.size() > 0) {
+				//getLogger().info(f.getName() + ":found " + invocations.size());
+				f.addRelations(NeuroBase.getInstance().bijection, invocations);
+			} else {
+				getLogger().info("");
+			}
 			// TODO test parameterized neurons
 			
 			// TODO test f1 o ... o fn combinations

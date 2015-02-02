@@ -144,11 +144,13 @@ public class ParameterisedNeuron extends Neuron {
 			if( index.containsKey(ind) ) {
 				int varName = index.get(ind);
 				
+				// variable can be defined several times, but need to be configured once
 				if(!configuredVariables.contains(varName)) {
 					configuredVariables.add(varName);
-					
+										
 					if(relations.containsKey(ind)) {
 						if(foundData.containsKey(varName)) { 
+							// if there data mapped for that position
 							for( Entry<Neuron, Data> rels: relations.get(ind).entrySet() ) {
 								if( foundData.containsKey(varName) ) {
 									configuration.put(rels.getKey(), foundData.get(varName));
@@ -173,5 +175,15 @@ public class ParameterisedNeuron extends Neuron {
 	public Data computeEx(StringData operatorName, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
 		// For that neuron alternative data should be recomputed on place depend on operator name 
 		return computeEx(operatorName, input);
+	}
+	
+	
+	public static ArrayList<Data> replaceData(ArrayList<Data> data, Data candidate) {
+		ArrayList<Data> copy = new ArrayList<>(data);
+		if(copy.size() > 0) {
+			copy.set(copy.size() - 1, candidate);
+		}
+		
+		return copy;
 	}
 }
