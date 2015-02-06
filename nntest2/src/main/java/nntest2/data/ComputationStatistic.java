@@ -19,20 +19,29 @@ import nntest2.neurons.Neuron;
 
 public class ComputationStatistic {
 	public static class DataPredicate {
+		public static final int OUTPUT_INDEX = -2;
+		public static final int DATA_INDEX = -1;
 		public Data data;
 		public Boolean used;
-		public int index = -1;
+		public int index = DATA_INDEX;
 		
 		public DataPredicate(Data data, Boolean used, int index) {
 			this.data = data;
 			this.used = used;
+			this.index = index;
 		}
 		
 		@Override
 		public String toString() {
 			if(used) {
-				if(index == -1) {
-					return data.toString();
+				if(index == DATA_INDEX) {
+					if(data == null) {
+						return "(null)";
+					} else {
+						return data.toString();
+					}
+				} else if(index == OUTPUT_INDEX) {
+					return "{parent output}";
 				} else {
 					return new IndexData(index).toString();
 				}
@@ -41,28 +50,46 @@ public class ComputationStatistic {
 			}
 		}
 		
-		public static ArrayList<Data> extract(ArrayList<DataPredicate> predicatedInput) {
+		public static ArrayList<Data> extract(ArrayList<DataPredicate> predicatedInput, Data parentOutput) {
 			ArrayList<Data> result = new ArrayList<>();
 			
 			if(predicatedInput != null) {
 				for (DataPredicate data : predicatedInput) {
 					if(data.used) {
-						result.add(data.data);
+						if(data.index == DATA_INDEX) {
+							result.add(data.data);
+						} else if(data.index == OUTPUT_INDEX) {
+							if(parentOutput != null) {
+								result.add(parentOutput);
+							} else {
+								result.add(new IndexData(OUTPUT_INDEX));
+								// this can be resolved later on computation state, if this is not constant
+							}
+						} else {
+							result.add(new IndexData(data.index));
+						}
 					}
 				}
 			}
 			return result;			
 		}
 		
-		public static ArrayList<Data> extract(ArrayList<DataPredicate> predicatedInput, ArrayList<Data> parentInput) {
+		public static ArrayList<Data> extract(ArrayList<DataPredicate> predicatedInput, ArrayList<Data> parentInput, Data parentOutput) {
 			ArrayList<Data> result = new ArrayList<>();
 			
 			if(predicatedInput != null) {
 				for (DataPredicate data : predicatedInput) {
 					if(data.used) {
 						//result.add(data.data);
-						if(data.index == -1) {
+						if(data.index == DATA_INDEX) {
 							result.add(data.data);
+						} else if(data.index == OUTPUT_INDEX) {
+							if(parentOutput != null) {
+								result.add(parentOutput);
+							} else {
+								result.add(new IndexData(OUTPUT_INDEX));
+								// this can be resolved later on computation state, if this is not constant
+							}
 						} else {
 							result.add(parentInput.get(data.index));
 						}
@@ -83,6 +110,25 @@ public class ComputationStatistic {
 			}
 			return result;			
 		}
+		
+		public static ArrayList<DataPredicate> cover(int numVariables) {
+			ArrayList<DataPredicate> result = new ArrayList<>();
+			
+			for(int i = 0; i < numVariables; ++ i) {
+				result.add(new DataPredicate(null, true, i));
+			}
+			return result;			
+		}
+		
+		public static ArrayList<DataPredicate> cover(int numVariables, boolean outputUsed) {
+			ArrayList<DataPredicate> result = cover(numVariables);
+			
+			if(outputUsed) {
+				result.add(new DataPredicate(null, true, OUTPUT_INDEX));
+			}
+			
+			return result;
+		}
 	}
 	
 	public static class ResultExperience {
@@ -91,6 +137,7 @@ public class ComputationStatistic {
 		public Data output;
 		public Data parentOutput;
 		public ArrayList<Data> inputConfiguration;
+		public boolean expectedUsedAsLastInput = false;
 		
 		public ResultExperience(Neuron neuron, ArrayList<DataPredicate> input, Data output, Data parentOutput) {
 			this.neuron = neuron;
@@ -242,6 +289,7 @@ public class ComputationStatistic {
 		public ArrayList<DataPredicate> inputConfiguration;
 		public Neuron processingNeuron;
 		public Data expectedOutput;
+		public Data expectedParentOutput = null;
 		//public Data actualOutput;
 		public Boolean expectedUsedAsLastInput = false;
 		public InvokationData invocation = null;
@@ -268,21 +316,16 @@ public class ComputationStatistic {
 				resultBuilder.append(tab + "\tinput: " + inputConfiguration.toString() + ",\n");
 			}
 			
-			/*if(actualOutput != null) {
-				resultBuilder.append(tab + "\toutput: " + actualOutput.toString() + ",");
-				if(expectedUsedAsLastInput) {
-					resultBuilder.append("+(used expected output as input) " + expectedOutput.toString() + ",\n");
-				} else {
-					resultBuilder.append("\n");
-				}
-			}*/
-			
 			if(invocation != null) {
 				resultBuilder.append(tab + "\tinvocation: " + invocation.toString() + ",\n");
 			}
 			
 			if(!expectedUsedAsLastInput && expectedOutput != null) {
 				resultBuilder.append(tab + "\texpected output: " + expectedOutput.toString() + ",\n");
+			}
+			
+			if(expectedParentOutput != null) {
+				resultBuilder.append(tab + "\texpected parent output: " + expectedParentOutput.toString() + ",\n");
 			}
 			
 			return resultBuilder.append(tab + ")\n").toString();
@@ -310,7 +353,7 @@ public class ComputationStatistic {
 		resultBuilder.append("(#computation statistic=\n");
 		
 		if(globalExperience != null) {			
-			resultBuilder.append(globalExperience.toString("\t"));
+			//resultBuilder.append(globalExperience.toString("\t"));
 		}
 		
 		if(relations != null) {
@@ -336,6 +379,10 @@ public class ComputationStatistic {
 	
 	public ExperienceSet getInputExperience(ArrayList<Data> input) {
 		return experienceByInput.get(input);
+	}
+	
+	public Map<ArrayList<Data>, ExperienceSet> getInputExperience() {
+		return experienceByInput;
 	}
 	
 	public void addExperience(ArrayList<Data> input, Data output, Data time, ArrayList<ResultExperience> context) {

@@ -10,6 +10,7 @@ import java.util.TreeSet;
 
 import nntest2.data.ArrayData;
 import nntest2.data.Data;
+import nntest2.data.NeuronData;
 import nntest2.data.StringData;
 
 public class ParameterisedNeuron extends Neuron {
@@ -78,7 +79,7 @@ public class ParameterisedNeuron extends Neuron {
 	
 	@Override
 	public boolean validate(String name) {		
-		Data[] nameParts = ArrayData.splitToElements(name);
+		Data[] nameParts = Data.construct(name).elements();
 		
 		TreeMap<Integer, Data> foundData = mapData(nameParts);
 		
@@ -115,7 +116,7 @@ public class ParameterisedNeuron extends Neuron {
 	}
 	
 	@Override
-	public Data compute(StringData operatorName, ArrayList<Data> input) {
+	public Data compute(NeuronData operatorName, ArrayList<Data> input) {
 		// check memory
 		Data result = super.compute(operatorName, input);
 		
@@ -127,8 +128,13 @@ public class ParameterisedNeuron extends Neuron {
 	}
 	
 	@Override
-	public Data computeEx(StringData operatorName, ArrayList<Data> input) {
-		Data[] nameParts = ArrayData.splitToElements(operatorName.toString());
+	public Data computeEx(NeuronData operatorName, ArrayList<Data> input) {
+		Data[] nameParts = //ArrayData.splitToElements(operatorName.toString());
+				ArrayData.splitToElements(operatorName.getName());
+		if(nameParts == null) {
+			return null;
+		}
+		
 		TreeMap<Integer, Data> foundData = mapData(nameParts);
 		
 		if(foundData == null) {
@@ -172,7 +178,7 @@ public class ParameterisedNeuron extends Neuron {
 	}
 	
 	@Override
-	public Data computeEx(StringData operatorName, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
+	public Data computeEx(NeuronData operatorName, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
 		// For that neuron alternative data should be recomputed on place depend on operator name 
 		return computeEx(operatorName, input);
 	}

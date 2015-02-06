@@ -1,7 +1,10 @@
 package nntest2.data;
 
+import java.util.Collection;
+import java.util.Collections;
+
 public class TextData extends Data {
-	StringData[] parts = null; 
+	Data[] parts = null; 
 	
 	@Override
 	public Data[] elements() {
@@ -26,18 +29,23 @@ public class TextData extends Data {
 	}
 	
 	public TextData(StringData[] parts) {
-		construct(parts);
+		constructText(parts);
+	}
+	
+	public TextData(Data[] parts) {
+		constructText(parts);
 	}
 	
 	public TextData(String text) {
-		construct(translateElements(ArrayData.splitToElements(text)));
+		//construct(translateElements(ArrayData.splitToElements(text)));
+		constructText(Data.construct(text).elements());
 	}
 	
 	public TextData(StringData text) {
-		construct(translateElements(ArrayData.splitToElements(text.toString())));
+		constructText(Data.construct(text.toString()).elements());
 	}
 	
-	private void construct(StringData[] parts) {
+	private void constructText(Data[] parts) {
 		this.parts = parts;
 	}
 	
@@ -57,12 +65,23 @@ public class TextData extends Data {
 	
 	private void construct(String[] parts) {
 		if(parts != null) {
-			StringData[] newParts = new StringData[parts.length];
+			Data[] newParts = new Data[parts.length];
 			
 			for (int i = 0, len = parts.length; i < len; ++ i) {
-				newParts[i] = new StringData(parts[i].trim());
+				newParts[i] = //new StringData(parts[i].trim());
+						Data.construct(parts[i].trim());
 			}
-			construct(newParts);
+			constructText(newParts);
 		} 
+	}
+	
+	public static TextData constructPossibilities(Collection<Data> possibilities) {
+		if(possibilities == null || possibilities.size() == 0) {
+			return null;
+		}
+		
+		Data[] array = new Data[possibilities.size()];
+		// XXX extend in future
+		return new TextData(possibilities.toArray(array));
 	}
 }

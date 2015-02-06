@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
@@ -13,6 +14,7 @@ import java.util.TreeSet;
 import nntest2.Analyser;
 import nntest2.NeuroBase;
 import nntest2.data.AnalysisRequest;
+import nntest2.data.ArrayData;
 import nntest2.data.BoolData;
 import nntest2.data.ComputationStatistic;
 import nntest2.data.ComputationStatistic.DataPredicate;
@@ -26,6 +28,7 @@ import nntest2.data.IntegerData;
 import nntest2.data.InvokationData;
 import nntest2.data.NeuronData;
 import nntest2.data.StringData;
+import nntest2.data.TextData;
 import nntest2.herpers.CommonHelper;
 import nntest2.herpers.NeuroHelper;
 
@@ -45,6 +48,8 @@ import com.sec.gb.ipa.ks.common.util.Common;
  * @author sec
  */
 public class Neuron implements Comparable<Neuron> {
+	private static final int SIMILARITY_LEARN_RATE = 3;
+
 	private Logger logger = null;
 	
 	private StringData name = null; 
@@ -85,6 +90,23 @@ public class Neuron implements Comparable<Neuron> {
 		relations = new HashMap<>();
 	}
 	
+	public boolean removeRelation(Neuron relation, Neuron relationObject) {
+		if(!relations.containsKey(relation)) {
+			return false;
+		}
+		
+		HashSet<InvokationData> badRelations = new HashSet<>();
+		HashSet<InvokationData> rels = relations.get(relation);
+		for (InvokationData rel : rels) {
+			if(rel.neuron.getNeuron().compareTo(relationObject) == 0) {
+				badRelations.add(rel);
+			}
+		}
+		
+		rels.removeAll(badRelations);
+		return badRelations.size() > 0;
+	}
+	
 	public void addKid(Neuron kid) {
 		kidNeurons.add(kid.register());
 	}
@@ -116,6 +138,14 @@ public class Neuron implements Comparable<Neuron> {
 		return false;
 	}
 	
+	public boolean canAnalyseText() {
+		return false;
+	}
+	
+	public boolean canBeUsedForGeneralComputation() {
+		return true;
+	}
+	
 	public boolean isVerificationRelation() {
 		return false;
 	}
@@ -140,11 +170,23 @@ public class Neuron implements Comparable<Neuron> {
 		return false;
 	}
 	
+	/**
+	 * 
+	 * @param text
+	 * @return
+	 * 	- InvocationData - if text defines the general method, that can be computed with some attributes
+	 *  - null - if there was just information, and it not need to be return anything
+	 *  - other Data - the result of analysis
+	 */
+	public Data analyseText(TextData text) {
+		return null;		
+	}
+	
 	public Set<NeuronData> compute(Neuron inputNeuron) {
 		return null;
 	}
 	
-	public void compute(Neuron inputNeuron, StringData operator, ArrayList<Data> input, Data output) {
+	public void compute(Neuron inputNeuron, NeuronData operator, ArrayList<Data> input, Data output) {
 		compute(new AnalysisRequest(inputNeuron, operator, input, output));
 	}
 	
@@ -152,11 +194,11 @@ public class Neuron implements Comparable<Neuron> {
 		
 	}
 	
-	public Data compute(StringData operatorName, Data input) {	
-		return findAnswer(operatorName, CommonHelper.mergeCopy(input));
+	public Data compute(NeuronData operator, Data input) {	
+		return findAnswer(operator, CommonHelper.mergeCopy(input));
 	}
 
-	private Data findAnswer(StringData operatorName, ArrayList<Data> input) {
+	private Data findAnswer(NeuronData operator, ArrayList<Data> input) {
 		Set<Data> prevAnswers = getKnowledge(input, null);
 		
 		if(prevAnswers.size() == 1) {
@@ -164,15 +206,15 @@ public class Neuron implements Comparable<Neuron> {
 			return prevAnswers.iterator().next();
 		}
 		
-		return computeEx(operatorName, input);
+		return computeEx(operator, input);
 	}
 	
 	public Set<RelationsData> getRelations() {
 		return knowledge.relations;
 	}
 	
-	public Data computeEx(StringData operatorName, ArrayList<Data> input) {
-		return computeEx(operatorName, input, null);
+	public Data computeEx(NeuronData operator, ArrayList<Data> input) {
+		return computeEx(operator, input, null);
 	}
 
 	/**
@@ -180,67 +222,10 @@ public class Neuron implements Comparable<Neuron> {
 	 * @param input 
 	 * @return
 	 */
-	public Data computeEx(StringData operatorName, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
+	public Data computeEx(NeuronData operator, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
 		// try to find answer
 		
 		Set<Data> returnedData = new HashSet<>();
-		// collect possibilities from neurons with bijection neurons
-		/*if(knowledge.knowRelations()) {
-			//for (Entry<Neuron, Pair<Data, Double>> data : acceptedConfiguration.entrySet()) {
-			for(RelationsData data: knowledge.relations) {
-				//Neuron checkNeuron = data.getKey();
-				Neuron checkNeuron = data.processingNeuron;
-				Neuron bijectionNeuron = checkNeuron.bijectionNeuron();
-				
-				if(bijectionNeuron != null) {
-					//Data neuronValue = data.getValue().first;
-					Data neuronValue = data.expectedOutput;
-					
-					if(alternativeData != null && alternativeData.containsKey(data.processingNeuron)) {
-						// use suggested data. Need for variables
-						neuronValue = alternativeData.get(data.processingNeuron);
-					}
-					
-					Data answer = bijectionNeuron.compute(operatorName, CommonHelper.mergeCopy(input, neuronValue));
-					
-					// check answer on all checking features
-					boolean passed = true;
-					//for (Entry<Neuron, Pair<Data, Double>> controlData : acceptedConfiguration.entrySet()) {
-					for(RelationsData controlData: knowledge.relations) {
-						Neuron conditionNeuron = controlData.processingNeuron;
-						Neuron nullNeuron = conditionNeuron.bijectionNeuron();
-						
-						if(nullNeuron == null) {
-							// if there no bijection neuron, relation can still be used to validate
-							Data normalValue = controlData.expectedOutput;
-							if(alternativeData != null && alternativeData.containsKey(controlData.processingNeuron)) {
-								normalValue = alternativeData.get(data.processingNeuron);
-							}
-							
-							Data answer2 = conditionNeuron.compute(operatorName, CommonHelper.mergeCopy(input, answer), normalValue);
-							if(answer2 == null || !answer2.isTrue() ) {
-								logger.info("answer is omited [" + answer + "] because [" + conditionNeuron.getName() + "] = [" + normalValue + "] not passed" ); 
-								passed = false;
-								break;
-							}
-						}
-					}				
-					
-					if(passed) {
-						returnedData.add(answer);
-					}
-				}
-			}
-			
-			// remove null answers if are
-			returnedData.remove(null);
-			
-			if(returnedData.size() == 1) {
-				return returnedData.iterator().next();
-			}
-			
-			// no answer or answer is ambiguous
-		}*/
 		
 		Set<Data> results = new HashSet<>();
 		
@@ -259,46 +244,55 @@ public class Neuron implements Comparable<Neuron> {
 						}
 					}
 					
+					InvokationData foundSolution = solution.clone();
+					
 					if(alternative != null) {
-						solution = solution.clone();
-						solution.inputMapping = ParameterisedNeuron.replaceData(solution.inputMapping, alternative);
+						foundSolution.inputMapping = ParameterisedNeuron.replaceData(foundSolution.inputMapping, alternative);
 					}
 					
-					result = solution.invoke(input, null);
+					result = foundSolution.invoke(input, null, null);
 					
-					if(result != null) {
+					if(result != null ) {
 						results.add(result);
 					}
-				}
+				}				
+			}
+			
+		}
+		
+		if(results.size() != 1) {
+			return null;
+		}
+		
+		Data result = results.iterator().next();
+		// apply global verifications after computation. That should include the only found result
+		
+		for(Entry<Neuron, HashSet<InvokationData>> relation : relations.entrySet()) {			
+			for (InvokationData solution : relation.getValue()) {
 				
 				if(relation.getKey().isVerificationRelation()) {
-					if(!solution.validate(input, null)) {
+					if(!solution.validate(input, result, null)) {
 						// input not compatible
 						return null;
 					}
 				}
 			}
-			
 		}
-		
-		if(results.size() == 1) {
-			return results.iterator().next();
-		}
-		
-		return null;
+				
+		return result;
 	}
 	
-	public Data compute(StringData operatorName, Data input, Data output) {
-		Data result = compute(operatorName, input);
+	public Data compute(NeuronData operator, Data input, Data output) {
+		Data result = compute(operator, input);
 		return new BoolData( result != null && result.compareTo(output) == 0 );
 	}
 	
-	public Data compute2(StringData operatorName, Data input1, Data input2) {
-		return findAnswer(operatorName, CommonHelper.mergeCopy(input1, input2));
+	public Data compute2(NeuronData operator, Data input1, Data input2) {
+		return findAnswer(operator, CommonHelper.mergeCopy(input1, input2));
 	}
 	
-	public Data compute2(StringData operatorName, Data input1, Data input2, Data output) {
-		Data result = compute2(operatorName, input1, input2);
+	public Data compute2(NeuronData operator, Data input1, Data input2, Data output) {
+		Data result = compute2(operator, input1, input2);
 		return new BoolData( result != null && result.compareTo(output) == 0 );
 	}
 	
@@ -306,32 +300,32 @@ public class Neuron implements Comparable<Neuron> {
 		return null;
 	}
 
-	public Data compute(StringData operatorName, ArrayList<Data> input) {
+	public Data compute(NeuronData operator, ArrayList<Data> input) {
 		Data result = null;
 		if(input.size() == 1) {
-			result = compute(operatorName, input.get(0));
+			result = compute(operator, input.get(0));
 		} else if(input.size() == 2) {
-			result = compute2(operatorName, input.get(0), input.get(1));
+			result = compute2(operator, input.get(0), input.get(1));
 		} else {
-			Data answer = findAnswer(operatorName, input);
+			Data answer = findAnswer(operator, input);
 			
 			if(answer != null) {
 				result = answer;
 			} else {			
-				result = computeEx(operatorName, input);
+				result = computeEx(operator, input);
 			}
 		}
 		
 		if(result != null) {
 			// make analysis of computed results
-			NeuroBase.getInstance().analyseExperience(this, operatorName, input, result);
+			NeuroBase.getInstance().analyseExperience(this, operator, input, result);
 		}
 		
 		return result;
 	}
 	
-	public Data compute(StringData operatorName, ArrayList<Data> input, Data output) {
-		Data result = compute(operatorName, input);
+	public Data compute(NeuronData operator, ArrayList<Data> input, Data output) {
+		Data result = compute(operator, input);
 		if(result == null) {
 			return null;
 		}
@@ -408,44 +402,139 @@ public class Neuron implements Comparable<Neuron> {
 		// ??? just suggest relation neurons candidates? that should be verified and connected to actual relation type?
 		HashSet<RelationsData> relations = new HashSet();
 		// normalize statistic
+		NeuroBase baseInstance = NeuroBase.getInstance();
 		for(Entry<Neuron, HashMap<Data, Pair<ResultExperience, Double>>> answerStats: distribution.entrySet() ) {
 		
-			// inspect neuron autputs for stability
+			///////////////////////////////////////////////////////
+			// 1. inspect neuron outputs for stability
+			Neuron neuron = answerStats.getKey();
+			
 			for( Entry<Data, Pair<ResultExperience, Double>> appearences: answerStats.getValue().entrySet() ) {
 				if(appearences.getValue().second > INVARIANT_LEARN_ACCEPT_TRESHOLD) {
-					//invariants.add(appearences.getKey());
-					RelationsData relation = new RelationsData();
-					relation.processingNeuron = answerStats.getKey();
-					//relation.expectedOutput = appearences.getValue().first.parentOutput;
-					//relation.actualOutput = appearences.getKey();
-					relation.expectedOutput = appearences.getKey();
-					relation.inputConfiguration = appearences.getValue().first.input;					
-					relations.add(relation);
+					if(appearences.getKey() != null) {
+						//invariants.add(appearences.getKey());
+						RelationsData relation = new RelationsData();
+						relation.processingNeuron = neuron;
+						relation.expectedUsedAsLastInput = appearences.getValue().first.expectedUsedAsLastInput;;
+						relation.expectedOutput = appearences.getKey();
+						relation.inputConfiguration = appearences.getValue().first.input;
+						relations.add(relation);
+					}
 				} 
 			}				
 			
-			// inspect parentOutput -> outputRelations
+			///////////////////////////////////////////////////////////////////////////////
+			// 2. inspect parentOutput -> outputRelations
+			// in meaning of always same or oposite
 			
-			Data result = NeuroBase.getInstance().findNeuron(new StringData(NeuroHelper.HAS_SAME_ELEMENTS))
-					.compute(Analyser.EQ_OPER, CommonHelper.mergeCopy(vals.get(answerStats.getKey()), outputs.get(answerStats.getKey())));
+			ArrayList<Data> neuronVals = vals.get(neuron);			
+			ArrayList<Data> operatorOutputs = outputs.get(neuron);
+			
+			Data result = baseInstance.findNeuron(new StringData(NeuroHelper.HAS_SAME_ELEMENTS))
+					.compute( new NeuronData(Analyser.EQ_OPER), CommonHelper.mergeCopy(new ArrayData(neuronVals), new ArrayData(operatorOutputs)));
+			
 			if( result != null && result.isTrue()) {
 				RelationsData relation = new RelationsData();
-				relation.processingNeuron = answerStats.getKey();
-				relation.relationNeuron = NeuroBase.getInstance().same;		
+				relation.processingNeuron = neuron;
+				relation.relationNeuron = baseInstance.same;		
+				relation.expectedUsedAsLastInput = false;
+				relation.inputConfiguration = DataPredicate.cover(input.size());
 				relations.add(relation);
 				
-				ArrayList<Data> inputMapping = new ArrayList<>();				
+				/*ArrayList<Data> inputMapping = new ArrayList<>();				
 				for(int i = 0; i < input.size(); ++ i) {
 					inputMapping.add(new IndexData(i));
 				}
 				try {
-					InvokationData data = new InvokationData(new NeuronData(answerStats.getKey()), inputMapping);
+					InvokationData data = new InvokationData(new NeuronData(neuron), inputMapping);
 					relation.invocation = data;
 					addRelations(relation.relationNeuron, data);
 				} catch (Exception e) {
+				}*/
+			}
+			
+			boolean allOpposite = true;
+			for(int ind = 0, len = neuronVals.size(); ind < len && allOpposite;  ++ ind) {
+				try {
+					BoolData val = new BoolData(neuronVals.get(ind).toString());
+					BoolData operatorOutput = new BoolData(operatorOutputs.get(ind).toString());
+					
+					allOpposite &= (val.compareTo(operatorOutput) != 0);
+				} catch (Exception e) {
+					allOpposite = false;
+				}
+				
+			}
+			
+			if(allOpposite) {
+				RelationsData relation = new RelationsData();
+				relation.processingNeuron = neuron;
+				relation.relationNeuron = baseInstance.opposite;	
+				relation.expectedUsedAsLastInput = false;
+				relation.inputConfiguration = DataPredicate.cover(input.size());
+				relations.add(relation);
+			}
+			
+			
+			/////////////////////////////////////////////////////////////////////////////////
+			// 3. inspect key->val relations
+			// sometimes if for output 1 always expected x1, for output 2 always expected x2, ... to model output1 and 2, can be used x1, x2.
+			HashMap<Data, HashMap<Data, Integer> > valueFromResult = new HashMap<>();
+			HashMap<Data, HashMap<Data, Integer> > resultFromValue = new HashMap<>();
+			
+			for(int ind = 0, len = neuronVals.size(); ind < len;  ++ ind) {
+				Data value = operatorOutputs.get(ind);
+				Data nresult = neuronVals.get(ind);
+				
+				addResult(valueFromResult, value, nresult);
+				addResult(resultFromValue, nresult, value);				
+			}
+			
+			/**
+			 * result computation relations
+			 */
+			for(Entry<Data, HashMap<Data, Integer>> valsPerResultEntry: valueFromResult.entrySet()) {
+				if(valsPerResultEntry.getValue().size() == 1) {
+					if(valsPerResultEntry.getKey() != null && valsPerResultEntry.getValue().values().iterator().next() >= SIMILARITY_LEARN_RATE) {
+						// != null to exclude weird operators checks
+						// require counter > 1 to exclude just 1 case examples (that not has power)
+						// means all current value of neuron always lead to same operator output 
+						RelationsData relation = new RelationsData();
+						relation.processingNeuron = neuron;
+						relation.expectedUsedAsLastInput = false;
+						relation.inputConfiguration = DataPredicate.cover(input.size());
+						relation.expectedOutput = valsPerResultEntry.getKey();
+						// next is expected answer
+						relation.expectedParentOutput = valsPerResultEntry.getValue().keySet().iterator().next();
+						relation.relationNeuron = baseInstance.same;
+						relations.add(relation);
+					}					
 				}
 			}
-		}
+			
+			/**
+			 * verification relations
+			 */
+			for(Entry<Data, HashMap<Data, Integer>> resultPerValEntry: resultFromValue.entrySet()) {
+				if(resultPerValEntry.getValue().size() == 1) {
+					Data expected = resultPerValEntry.getValue().keySet().iterator().next();
+					if(expected != null && resultPerValEntry.getValue().values().iterator().next() >= SIMILARITY_LEARN_RATE) {
+						// != null to exclude weird operators checks
+						// require counter > 1 to exclude just 1 case examples (that not has power)
+						// means when this output, it leads to same value of operator
+						RelationsData relation = new RelationsData();
+						relation.processingNeuron = neuron;
+						relation.expectedUsedAsLastInput = false;
+						relation.inputConfiguration = DataPredicate.cover(input.size());
+						relation.expectedOutput = expected;
+						// next is expected answer
+						relation.expectedParentOutput = resultPerValEntry.getKey();
+						relation.relationNeuron = baseInstance.validation;
+						relations.add(relation);
+					}					
+				}
+			}
+ 		}
 				
 		if(! knowledge.validateRelations(relations) ) {
 			return;
@@ -459,7 +548,7 @@ public class Neuron implements Comparable<Neuron> {
 			destroyKids();
 			destroyRelations();
 			
-			Set<NeuronData> newKids = NeuroBase.getInstance().analyseNeuron(this);
+			Set<NeuronData> newKids = baseInstance.analyseNeuron(this);
 			
 			if(newKids != null) {
 				for (NeuronData neuronData : newKids) {
@@ -470,30 +559,64 @@ public class Neuron implements Comparable<Neuron> {
 		
 		// if relations are changed after new experience added, check them.
 		
-		// make cross validation
-		Data crossValidationData = computeEx(getName(), input);
 		
-		if(crossValidationData == null || crossValidationData.compareTo(output) != 0) {
-			// method is not trained well yet. restrict from computing by self
-			knowledge.relations = null;
-			// need to destroy kids
-			destroyKids();
-			destroyRelations();
-		}		
+		// make cross validation
+		int passedNum = 0;
+		int allNum = 0;
+		Map<ArrayList<Data>, ExperienceSet> exp = knowledge.getInputExperience();
+		
+		for (Entry<ArrayList<Data>, ExperienceSet> expEntry : exp.entrySet()) {
+			for(Data outputData: expEntry.getValue().experienceByOutput.keySet()) {
+				++allNum;
+				Data crossValidationData = computeEx(toData(), expEntry.getKey());
+				
+				if(crossValidationData == null || crossValidationData.compareTo(outputData) != 0) {
+					/*// method is not trained well yet. restrict from computing by self
+					knowledge.relations = null;
+					// need to destroy kids
+					destroyKids();
+					destroyRelations();*/
+					getLogger().info("Failed validation for: " + getName() + "(" + expEntry.getKey() + ") = " + outputData + " . receiced out: " + crossValidationData);
+				} else { 
+					++ passedNum;
+				}
+			}
+		}	
+		
+		getLogger().info("Cross validation: passed " + passedNum + "/" + allNum);
+	}
+
+	private void addResult(
+			HashMap<Data, HashMap<Data, Integer>> valueFromResult, Data value,
+			Data nresult) {
+		if(!valueFromResult.containsKey(nresult)) {
+			valueFromResult.put(nresult, new HashMap<Data, Integer>());
+		}				
+		
+		HashMap<Data, Integer> mapOfResults = valueFromResult.get(nresult);
+		
+		if(!mapOfResults.containsKey(value)) {
+			mapOfResults.put(value, 1);
+		} else {
+			mapOfResults.put(value, 1 + mapOfResults.get(value));
+		}
 	}
 	
-	public void train(StringData operatorName, ArrayList<Data> input, Data output) {
+	public void train(NeuronData operator, ArrayList<Data> input, Data output) {
+		getLogger().info("train : " + getName() + "(" + input + ") = " + output);
 		ArrayList<ResultExperience> experience = new ArrayList<>();
 		
 		NeuroBase base = NeuroBase.getInstance();
 		boolean isOutputBoolean = (Data.construct(output.toString()) instanceof BoolData);
+		boolean outputUsedAsLastInput = !isOutputBoolean;
 		
 		ArrayList<Data> mergedInput = input;
-		if(!isOutputBoolean) {
+		
+		if(outputUsedAsLastInput) {
 			mergedInput = CommonHelper.mergeCopy(input, output);
 		}
 		
-		for(Entry<Data, Neuron> neuron: base.getNeurons().entrySet()) {
+		for(Entry<Data, Neuron> neuron: base.getComputationNeurons().entrySet()) {
 			// search input + output characteristics. If found => biective function can be used to find output from input
 			// TODO check for all subsets of input. Sometimes actual value can be computed on subset, and other need only for validation.
 			// example for above: similar length of containing string is just length of second, and verification is contains for both.
@@ -503,22 +626,27 @@ public class Neuron implements Comparable<Neuron> {
 				continue;
 			}
 			
-			Data result = neuronObj.compute(operatorName, mergedInput);			
+			Data result = neuronObj.compute(operator, mergedInput);			
 			
 			if(result != null) {
 				//experience.put(neuron.getValue(), result);
-				ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(mergedInput), result, output);
+				ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(input.size(), outputUsedAsLastInput), result, output);
+				currentExperience.expectedUsedAsLastInput = outputUsedAsLastInput;
+				experience.add(currentExperience);
+			} else {
+				ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(input.size(), outputUsedAsLastInput), null, output);
+				currentExperience.expectedUsedAsLastInput = outputUsedAsLastInput;
 				experience.add(currentExperience);
 			}
 			
 			// TODO find verification relations by comparing output. 
 			
 			// TODO find exact same result relations 
-			Data sameResult = neuronObj.compute(operatorName, input);
+			Data sameResult = neuronObj.compute(operator, input);
 			if(sameResult != null && sameResult.compareTo(output) == 0) {
-				if(!isOutputBoolean) {
+				if(outputUsedAsLastInput) {
 					// other will be included before
-					ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(input), result, output);
+					ResultExperience currentExperience = new ResultExperience(neuronObj, DataPredicate.cover(input.size(), false), result, output);
 					experience.add(currentExperience);
 				}
 			}
@@ -526,7 +654,7 @@ public class Neuron implements Comparable<Neuron> {
 		
 		setKnowledge(input, output, new IntegerData(new Date().getTime()), experience);	
 		trainRelations(input, output);
-		base.analyseExperience(this, operatorName, input, output);
+		base.analyseExperience(this, operator, input, output);
 	}
 	
 	@Override
@@ -535,6 +663,7 @@ public class Neuron implements Comparable<Neuron> {
 		
 		builder.append("[" + getName() + "]:\n" );		 
 		builder.append("\t" + knowledge.toString() + "\n");
+		//builder.append("\toperators: " + relations.toString() + "\n");
 		
 		return builder.toString();
 	}
@@ -559,5 +688,9 @@ public class Neuron implements Comparable<Neuron> {
 	 */
 	public Logger getLogger() {
 		return logger;
+	}
+	
+	public NeuronData toData() {
+		return new NeuronData(this);
 	}
 }

@@ -5,11 +5,16 @@ import java.util.ArrayList;
 import nntest2.neurons.Neuron;
 
 public class AnalysisRequest implements Comparable<AnalysisRequest>{
+	public enum CompareType {FULL, INPUT_NUM};
+	
 	public Neuron inputNeuron;
-	public StringData operator;
+	public NeuronData operator;
 	public ArrayList<Data> input;
 	public Data output;
-	public AnalysisRequest(Neuron inputNeuron, StringData operator, ArrayList<Data> input, Data output) {
+	
+	public CompareType type = CompareType.FULL;
+	
+	public AnalysisRequest(Neuron inputNeuron, NeuronData operator, ArrayList<Data> input, Data output) {
 		this.inputNeuron = inputNeuron;
 		this.operator = operator;
 		this.input = input;
@@ -27,12 +32,19 @@ public class AnalysisRequest implements Comparable<AnalysisRequest>{
 			return res1;
 		}
 		
-		res1 = new ArrayData(input).compareTo(new ArrayData(o.input));
-		if(res1 != 0) {
+		switch (type) {
+		case INPUT_NUM:
+			return Integer.compare(input.size(), o.input.size());
+		case FULL:
+		default:		
+			res1 = new ArrayData(input).compareTo(new ArrayData(o.input));
+			/*if(res1 != 0) {
+				return res1;
+			}
+			
+			return output.compareTo(o.output);*/
 			return res1;
-		}
-		
-		return output.compareTo(o.output);
+		}	
 	}
 	
 	@Override
@@ -56,5 +68,15 @@ public class AnalysisRequest implements Comparable<AnalysisRequest>{
 		}
 		
 		return super.toString();
+	}
+	
+	@Override
+	public boolean equals(Object obj) {
+		return compareTo((AnalysisRequest) obj) == 0;
+	}
+	
+	@Override
+	public int hashCode() {
+		return inputNeuron.getName().toString().hashCode();
 	}
 }

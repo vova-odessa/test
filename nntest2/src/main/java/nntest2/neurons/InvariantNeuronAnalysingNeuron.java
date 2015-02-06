@@ -12,6 +12,7 @@ import com.sec.gb.ipa.ks.common.util.Common;
 import nntest2.Analyser;
 import nntest2.NeuroBase;
 import nntest2.data.AnalysisRequest;
+import nntest2.data.AnalysisRequest.CompareType;
 import nntest2.data.ArrayData;
 import nntest2.data.Data;
 import nntest2.data.IndexData;
@@ -36,8 +37,9 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 	Set<AnalysisRequest> history = new HashSet<AnalysisRequest>();
 	AsyncCounter isInAnalysis = new AsyncCounter();
 	
-	Map<Neuron, Set<Neuron>> analysed = new HashMap();
-	
+	Map<AnalysisRequest, Set<Neuron>> analysed = new HashMap();
+	Map<AnalysisRequest, Map<Neuron, Boolean>> relationsState = new HashMap<>();
+ 	
 	
 	@Override
 	public void compute(AnalysisRequest input) {
@@ -80,10 +82,18 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 			Data y = input.input.get(input.input.size() - 1);
 			Data z = input.output;
 			
-			if(!analysed.containsKey(f)) {
-				analysed.put(f, new HashSet<Neuron>());
+			AnalysisRequest historyInput = new AnalysisRequest(input.inputNeuron, input.operator, input.input, input.output);
+			historyInput.type = CompareType.INPUT_NUM;
+			
+			if(!analysed.containsKey(input)) {
+				analysed.put(input, new HashSet<Neuron>());				
 			}
-			Set<Neuron> analysedRelations = analysed.get(f);
+			
+			if(!relationsState.containsKey(historyInput)) {
+				relationsState.put(historyInput, new HashMap<Neuron, Boolean>());
+			}
+			Set<Neuron> analysedRelations = analysed.get(input);
+			Map<Neuron, Boolean> historyForNeuron = relationsState.get(historyInput);
 			
 			// test regular neurons
 			HashMap<Data, Neuron> neurons = NeuroBase.getInstance().getNeurons();
@@ -94,20 +104,44 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 					continue;
 				} 
 				
+				if( x.size() == 0 && y.compareTo(z) == 0 ) {
+					continue;
+				}
+				
 				analysedRelations.add(testNeuron);
 				
-				Data yRes = testNeuron.compute(Analyser.EQ_OPER, CommonHelper.mergeCopy(x, z));
+				if(historyForNeuron.containsKey(testNeuron) && historyForNeuron.get(testNeuron) == false) {
+					// means for some configuration found that they are not bijective
+					// just skip 
+					continue;
+				}
+				
+				Boolean lastState = historyForNeuron.get(testNeuron);
+				
+				Data yRes = testNeuron.compute(new NeuronData(Analyser.EQ_OPER), CommonHelper.mergeCopy(x, z));
 				if(yRes != null && yRes.compareTo(y) == 0) {
 					ArrayList<Data> inputMapping = new ArrayList<Data>();
-					inputMapping.add(new IndexData(0));
-					inputMapping.add(new IndexData(1));
-					getLogger().error("!!!!! " + f.getName() + "->" + testNeuron.getName());
+					int ind = 0;
+					for(; ind < x.size(); ++ ind) {
+						inputMapping.add(new IndexData(ind));
+					}
+					inputMapping.add(new IndexData(ind));
+					getLogger().info("!!!!! " + f.getName() + "(" + x.toString() + ", " + y + ")->" + testNeuron.getName() + "(" + x.toString()+  ", " + z + ")");
 					try {
 						invocations.add(new InvokationData(new NeuronData(testNeuron), inputMapping));
+						historyForNeuron.put(testNeuron, true);
 					} catch (Exception e) {
+						historyForNeuron.put(testNeuron, false);
 					}
 				} else {
 					//getLogger().error("!! " + f.getName() + "->" + testNeuron.getName() + ".. " + y + ".. " + yRes);
+					historyForNeuron.put(testNeuron, false);
+				}
+				
+				if(lastState != null && historyForNeuron.get(testNeuron) == false) {
+					// remove previous wrong data
+					//f.removeRelation(NeuroBase.getInstance().bijection, testNeuron);
+					//f.getLogger().info("REMOVED: " + f.getName() + "->" + testNeuron.getName());
 				}
 			}		
 			
@@ -115,7 +149,7 @@ public class InvariantNeuronAnalysingNeuron extends Neuron {
 				//getLogger().info(f.getName() + ":found " + invocations.size());
 				f.addRelations(NeuroBase.getInstance().bijection, invocations);
 			} else {
-				getLogger().info("");
+				//getLogger().info("");
 			}
 			// TODO test parameterized neurons
 			
