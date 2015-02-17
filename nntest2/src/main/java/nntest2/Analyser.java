@@ -248,6 +248,11 @@ public class Analyser {
 		
 		//////////////////////////////////////////////////////////////////
 		// test
+		analyser.logger.info("!! test !!!!!!!!!!!!!!!");
+		
+		analyser.Analyse("(not) true");
+		analyser.Analyse("(not) false");
+		
 		analyser.Analyse("(last 2 of) ahahaha");
 		analyser.Analyse("(last 2 of) a");
 		analyser.Analyse("(last 3 of) 123456789");

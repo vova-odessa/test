@@ -219,22 +219,31 @@ public class Neuron implements Comparable<Neuron> {
 
 	/**
 	 * This method computes using logic (no memory data)
+	 * 
+	 * alternativeData:
+	 * key - relation neuron
+	 * value - 
+	 * 		key - place pattern
+	 * 		value - new value
+	 * 
 	 * @param input 
 	 * @return
 	 */
-	public Data computeEx(NeuronData operator, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
+	public Data computeEx(NeuronData operator, ArrayList<Data> input, HashMap<Neuron, HashMap<Data, Data> > alternativeData) {
 		// try to find answer
 		
 		Set<Data> returnedData = new HashSet<>();
 		
 		Set<Data> results = new HashSet<>();
 		
-		for(Entry<Neuron, HashSet<InvokationData>> relation : relations.entrySet()) {
+		HashMap<Neuron, HashSet<InvokationData>> currentRelations = new HashMap<>(relations);
+		
+		for(Entry<Neuron, HashSet<InvokationData>> relation : currentRelations.entrySet()) {
 			
 			for (InvokationData solution : relation.getValue()) {
 				if(relation.getKey().isComputationRelation()) {
 					Data result = null; 
-					Data alternative = null;
+					HashMap<Data, Data> alternative = null;
 					
 					if(alternativeData != null) {
 						if(alternativeData.containsKey(solution.neuron.getNeuron())) {
@@ -252,7 +261,7 @@ public class Neuron implements Comparable<Neuron> {
 					
 					result = foundSolution.invoke(input, null, null);
 					
-					if(result != null ) {
+					if(result != null) {
 						results.add(result);
 					}
 				}				
@@ -270,7 +279,7 @@ public class Neuron implements Comparable<Neuron> {
 		for(Entry<Neuron, HashSet<InvokationData>> relation : relations.entrySet()) {			
 			for (InvokationData solution : relation.getValue()) {
 				
-				if(relation.getKey().isVerificationRelation()) {
+				if(relation.getKey().isVerificationRelation()) {					
 					if(!solution.validate(input, result, null)) {
 						// input not compatible
 						return null;
@@ -316,7 +325,7 @@ public class Neuron implements Comparable<Neuron> {
 			}
 		}
 		
-		if(result != null) {
+		if(result != null && canBeUsedForGeneralComputation() ) {
 			// make analysis of computed results
 			NeuroBase.getInstance().analyseExperience(this, operator, input, result);
 		}

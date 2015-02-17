@@ -9,15 +9,23 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import nntest2.data.ArrayData;
+import nntest2.data.ComputationStatistic.DataPredicate;
 import nntest2.data.Data;
+import nntest2.data.IndexData;
 import nntest2.data.NeuronData;
 import nntest2.data.StringData;
 
 public class ParameterisedNeuron extends Neuron {
 	private static final String VAR_PREFIX = "n";
 	Data[] operatorPars = null; 
-	TreeMap<Integer, HashMap<Neuron, Data>> relations = null; 
+	
+	//
+	TreeMap<Integer, HashMap<Neuron, Data>> relations = null;
+	
+	//
 	TreeMap<Data, TreeSet<Integer> > internalRelations = null;
+	
+	//
 	TreeMap<Integer, Integer> index = null;
 	Neuron parentNeuron = null;
 
@@ -129,21 +137,27 @@ public class ParameterisedNeuron extends Neuron {
 	
 	@Override
 	public Data computeEx(NeuronData operatorName, ArrayList<Data> input) {
+		String originalName = operatorName.getOriginalName();
+		
+		if(originalName == null) {
+			return null;
+		}
+		
 		Data[] nameParts = //ArrayData.splitToElements(operatorName.toString());
-				ArrayData.splitToElements(operatorName.getName());
+				ArrayData.splitToElements(originalName);
 		if(nameParts == null) {
 			return null;
 		}
 		
 		TreeMap<Integer, Data> foundData = mapData(nameParts);
 		
-		if(foundData == null) {
+		if(foundData == null ) {
 			return null;
 		}
 		
 		Set<Integer> configuredVariables = new HashSet<>();
 		
-		HashMap<Neuron, Data> configuration = new HashMap<>();
+		HashMap<Neuron, HashMap<Data, Data> > configuration = new HashMap<>();
 		
 		int len = nameParts.length;		
 		for(int ind = 0; ind < len; ++ ind) {
@@ -159,7 +173,12 @@ public class ParameterisedNeuron extends Neuron {
 							// if there data mapped for that position
 							for( Entry<Neuron, Data> rels: relations.get(ind).entrySet() ) {
 								if( foundData.containsKey(varName) ) {
-									configuration.put(rels.getKey(), foundData.get(varName));
+									//configuration.put(rels.getKey(), foundData.get(varName));
+									
+									if(!configuration.containsKey(rels.getKey())) {
+										configuration.put(rels.getKey(), new HashMap<Data, Data>());
+									}
+									configuration.get(rels.getKey()).put(rels.getValue(), foundData.get(varName));
 								}
 							}
 						} else {
@@ -178,17 +197,45 @@ public class ParameterisedNeuron extends Neuron {
 	}
 	
 	@Override
-	public Data computeEx(NeuronData operatorName, ArrayList<Data> input, HashMap<Neuron, Data> alternativeData) {
+	public Data computeEx(NeuronData operatorName, ArrayList<Data> input, HashMap<Neuron, HashMap<Data, Data>> alternativeData) {
 		// For that neuron alternative data should be recomputed on place depend on operator name 
 		return computeEx(operatorName, input);
 	}
 	
 	
-	public static ArrayList<Data> replaceData(ArrayList<Data> data, Data candidate) {
+	public static ArrayList<Data> replaceData(ArrayList<Data> data, HashMap<Data, Data> candidate) {
 		ArrayList<Data> copy = new ArrayList<>(data);
-		if(copy.size() > 0) {
+		/*if(copy.size() > 0) {
 			copy.set(copy.size() - 1, candidate);
+		}*/
+		
+		// replace direct matches first
+		for(int i = 0; i < copy.size(); ++ i) {
+			if(! (copy.get(i) instanceof IndexData) && candidate.containsKey(copy.get(i))) {
+				copy.set(i, candidate.get(copy.get(i)));
+			}
 		}
+		
+		// replace indexed matches
+		for(int i = 0; i < copy.size(); ++ i) {
+			IndexData indexKey = new IndexData(i);
+			
+			if((copy.get(i) instanceof IndexData) ) {
+				if(candidate.containsKey(indexKey)) {
+					copy.set(i, candidate.get(indexKey));
+				}
+				
+				if(((IndexData)copy.get(i)).index == DataPredicate.OUTPUT_INDEX) {
+					IndexData outputIndex = new IndexData(DataPredicate.OUTPUT_INDEX);
+					
+					if(candidate.containsKey(outputIndex)) {
+						copy.set(i, candidate.get(outputIndex));
+					}
+				}
+			}
+		}
+			
+		
 		
 		return copy;
 	}

@@ -121,7 +121,7 @@ public class InvokationData extends Data {
 			return null;
 		}
 		
-		Data result = neuron.getNeuron().compute(new NeuronData(Analyser.EQ_OPER), realInput);
+		Data result = neuron.getNeuron().compute(neuron, realInput);
 		
 		if(result == null) {
 			return null;

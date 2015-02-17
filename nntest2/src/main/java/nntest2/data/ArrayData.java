@@ -89,7 +89,11 @@ public class ArrayData extends Data {
 			}
 			
 			if(locResult.first != null) {
-				result.add(locResult.first);
+				if(locResult.first instanceof ArrayData) {
+					result.addAll(Arrays.asList(locResult.first.elements()));
+				} else {
+					result.add(locResult.first);
+				}
 			}
 			
 			i = locResult.second;

@@ -19,6 +19,7 @@ import nntest2.data.BoolData;
 import nntest2.data.ComputationStatistic.DataPredicate;
 import nntest2.data.ComputationStatistic.RelationsData;
 import nntest2.data.Data;
+import nntest2.data.IndexData;
 import nntest2.data.IntegerData;
 import nntest2.data.InvokationData;
 import nntest2.data.NeuronData;
@@ -193,17 +194,21 @@ public class NeuroHelper {
 				} else {					
 					boolean success = false;
 					//for(Entry<Neuron, Pair<Data, Double>> neuroRelation: neuron.getRelations().entrySet()) {
+					
+					// only case with expected output
 					for(RelationsData neuroRelation: neuron.getRelations()) {
 						if(neuroRelation.expectedOutput != null && part.compareTo(neuroRelation.expectedOutput) == 0) {
 							if(!foundRelations.containsKey(index)) {
 								foundRelations.put(index, new HashMap<Neuron, Data>());
 							}
 							
-							foundRelations.get(index).put(neuroRelation.processingNeuron, neuroRelation.expectedOutput);
+							foundRelations.get(index).put(neuroRelation.processingNeuron, new IndexData(DataPredicate.OUTPUT_INDEX));
 							
 							success = true;
 						}
 					}
+					
+					// TODO: implement other matches
 					
 					if(success) {
 						internalRelations.put(part, new TreeSet<Integer>(Arrays.asList(new Integer[]{index})));
@@ -392,9 +397,21 @@ public class NeuroHelper {
 			Data result2 = compute(operatorName, input2);
 			
 			if( result1 == null || result2 == null || result1.compareTo(result2) != 0 ) {
-				return train.compute(operatorName, CommonHelper.mergeCopy(input1, input2));
+				train.compute(operatorName, CommonHelper.mergeCopy(input1, input2));
+				
+				result1 = compute(operatorName, input1);	
+				result2 = compute(operatorName, input2);
+				
+				if(result1 != null && result2 != null) {
+					return new BoolData(result1.compareTo(result2)== 0) ;
+				}
+				
+				return new BoolData(false);
+			} else if(result1.compareTo(result2) == 0) {
+				train.compute(operatorName, CommonHelper.mergeCopy(input1, input2));	
+				return new BoolData(true);
 			} else {
-				return result1;
+				return new BoolData(false);
 			}
 		}
 		
@@ -425,6 +442,10 @@ public class NeuroHelper {
 				
 				return data.invoke(null, null, null);
 			}
+		}
+		
+		public boolean canBeUsedForGeneralComputation() {
+			return false;
 		}
 		
 		

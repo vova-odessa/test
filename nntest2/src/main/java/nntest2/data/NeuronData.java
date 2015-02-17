@@ -16,7 +16,7 @@ public class NeuronData extends Data {
 		constructByName(neuron);
 	}
 
-	private void constructByName(String neuron) {
+	private void constructByName(String neuron) {		
 		boolean validate = false;
 		neuron = neuron.trim();
 		
@@ -33,14 +33,12 @@ public class NeuronData extends Data {
 			return;
 		}
 		
+		name = neuron;
+		
 		this.neuron = NeuroBase.getInstance().findNeuron(new StringData(neuron), false);
 		if(this.neuron == null && validate) {
 			this.neuron = NeuroBase.getInstance().validateNeuron(new StringData(neuron));
-		}
-		
-		if(this.neuron == null) {
-			name = neuron;
-		}
+		}		
 	}
 	
 	private static boolean hasSpecial(String data) {
@@ -54,7 +52,7 @@ public class NeuronData extends Data {
 	@Override
 	public String toString() {
 		if(isValid()) {
-			return "(" + NEURON_PREFIX + neuron.getName() + ")";
+			return "(" + NEURON_PREFIX + getOriginalName() + ")";
 		} else { 
 			return "(" + NEURON_PREFIX + "invalid neuron)";
 		}
@@ -70,6 +68,16 @@ public class NeuronData extends Data {
 		} else {
 			return name;
 		}
+	}
+	
+	public String getOriginalName() {
+		if(name != null) {
+			return name;
+		} else if(neuron != null) {
+			return neuron.getName().toString();
+		}
+		
+		return null;
 	}
 	
 	public Neuron getNeuron() {
